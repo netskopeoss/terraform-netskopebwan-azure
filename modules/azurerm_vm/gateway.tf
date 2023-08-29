@@ -16,6 +16,9 @@ locals {
     for intf, subnet in local.enabled_interfaces :
     var.netskope_gateway_config.gateway_data.secondary.interfaces[intf].id if var.netskope_gateway_config.ha_enabled
   ]
+  netskope_tags = {
+    netskope_tenant_id = var.netskope_tenant.tenant_id
+  }
 }
 
 locals {
@@ -42,7 +45,7 @@ resource "azurerm_linux_virtual_machine" "netskope_sdwan_primary_gw" {
     username   = "infiot"
     public_key = var.azurerm_instance.ssh_key
   }
-  custom_data = base64encode(templatefile("modules/azurerm_vm/scripts/user-data.sh",
+  custom_data = base64encode(templatefile("${path.module}/scripts/user-data.sh",
     {
       netskope_gw_default_password = var.netskope_gateway_config.gateway_password,
       netskope_tenant_url          = var.netskope_tenant.tenant_url,
@@ -76,6 +79,8 @@ resource "azurerm_linux_virtual_machine" "netskope_sdwan_primary_gw" {
     storage_account_type = "Premium_LRS"
     disk_size_gb         = "32"
   }
+
+  tags = merge(var.tags, local.netskope_tags)
 }
 
 resource "azurerm_linux_virtual_machine" "netskope_sdwan_secondary_gw" {
@@ -98,7 +103,7 @@ resource "azurerm_linux_virtual_machine" "netskope_sdwan_secondary_gw" {
     username   = "infiot"
     public_key = var.azurerm_instance.ssh_key
   }
-  custom_data = base64encode(templatefile("modules/azurerm_vm/scripts/user-data.sh",
+  custom_data = base64encode(templatefile("${path.module}/scripts/user-data.sh",
     {
       netskope_gw_default_password = var.netskope_gateway_config.gateway_password,
       netskope_tenant_url          = var.netskope_tenant.tenant_url,
@@ -132,4 +137,6 @@ resource "azurerm_linux_virtual_machine" "netskope_sdwan_secondary_gw" {
     storage_account_type = "Premium_LRS"
     disk_size_gb         = "32"
   }
+
+  tags = merge(var.tags, local.netskope_tags)
 }

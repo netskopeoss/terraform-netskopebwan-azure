@@ -18,8 +18,8 @@ locals {
 
   virtual_appliance_ip = length(local.lan_interfaces) > 0 ? var.netskope_gateway_config.gateway_data.primary.interfaces[tolist(local.lan_interfaces)[0]].private_ip_address : "0.0.0.0"
 
-  common_tags = {
-    environment = join("-", [var.netskope_tenant.tenant_id, var.azurerm_network_config.location])
+  netskope_tags = {
+    netskope_tenant_id = var.netskope_tenant.tenant_id
   }
 
   client_security_rules = {
@@ -46,7 +46,7 @@ resource "azurerm_virtual_network" "client" {
   location            = var.azurerm_network_config.location
   resource_group_name = var.azurerm_network_config.vnet_rg_name
   address_space       = [var.clients.vnet_cidr]
-  tags                = local.common_tags
+  tags = merge(var.tags, local.netskope_tags)
 }
 
 resource "azurerm_subnet" "client" {
@@ -60,7 +60,7 @@ resource "azurerm_network_security_group" "client" {
   name                = join("-", ["client", var.netskope_tenant.tenant_id, var.azurerm_network_config.location])
   location            = var.azurerm_network_config.location
   resource_group_name = var.azurerm_network_config.vnet_rg_name
-  tags                = local.common_tags
+  tags = merge(var.tags, local.netskope_tags)
 }
 
 resource "azurerm_network_security_rule" "client" {
@@ -88,7 +88,7 @@ resource "azurerm_route_table" "client" {
   location            = var.azurerm_network_config.location
   resource_group_name = var.azurerm_network_config.vnet_rg_name
 
-  tags = local.common_tags
+  tags = merge(var.tags, local.netskope_tags)
 }
 
 resource "azurerm_subnet_route_table_association" "client" {

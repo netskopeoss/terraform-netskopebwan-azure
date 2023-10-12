@@ -9,14 +9,6 @@ locals {
   tenant_api_url            = join(".", local.tenant_api_url_slice)
 }
 
-provider "azurerm" {
-  features {
-    resource_group {
-      prevent_deletion_if_contains_resources = false
-    }
-  }
-}
-
 provider "netskopebwan" {
   baseurl  = local.tenant_api_url
   apitoken = var.netskope_tenant.tenant_token

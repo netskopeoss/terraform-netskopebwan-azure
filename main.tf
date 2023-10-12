@@ -16,6 +16,7 @@ module "azurerm_vnet" {
   azurerm_route_server    = var.azurerm_route_server
   azurerm_network_config  = var.azurerm_network_config
   netskope_gateway_config = var.netskope_gateway_config
+  tags                    = var.tags
 }
 
 module "nsg_config" {
@@ -26,6 +27,7 @@ module "nsg_config" {
   azurerm_route_server    = var.azurerm_route_server
   azurerm_network_config  = merge(var.azurerm_network_config, module.azurerm_vnet.azurerm_vnet_output.azurerm_network_config)
   netskope_gateway_config = merge(var.netskope_gateway_config, module.azurerm_vnet.azurerm_vnet_output.netskope_gateway_config)
+  tags                    = var.tags
 }
 
 module "azurerm_vm" {
@@ -35,6 +37,7 @@ module "azurerm_vm" {
   azurerm_network_config  = merge(var.azurerm_network_config, module.azurerm_vnet.azurerm_vnet_output.azurerm_network_config)
   azurerm_route_server    = merge(var.azurerm_route_server, module.azurerm_vnet.azurerm_vnet_output.route_server)
   netskope_gateway_config = merge(var.netskope_gateway_config, module.nsg_config.nsg_config_output.netskope_gateway_config)
+  tags                    = var.tags
 }
 
 module "clients" {
@@ -46,4 +49,5 @@ module "clients" {
   azurerm_network_config  = merge(var.azurerm_network_config, module.azurerm_vnet.azurerm_vnet_output.azurerm_network_config)
   azurerm_route_server    = var.azurerm_route_server
   netskope_gateway_config = module.nsg_config.nsg_config_output.netskope_gateway_config
+  tags                    = var.tags
 }

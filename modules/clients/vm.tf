@@ -13,6 +13,7 @@ resource "azurerm_network_interface" "client" {
     subnet_id                     = azurerm_subnet.client.id
     private_ip_address_allocation = "Dynamic"
   }
+  tags = merge(var.tags, local.netskope_tags)
 }
 
 resource "azurerm_linux_virtual_machine" "client" {
@@ -30,7 +31,7 @@ resource "azurerm_linux_virtual_machine" "client" {
     username   = "infiot"
     public_key = var.azurerm_instance.ssh_key
   }
-  custom_data = base64encode(templatefile("modules/clients/scripts/user-data.sh",
+  custom_data = base64encode(templatefile("${path.module}/scripts/user-data.sh",
     {
       password = var.clients.password,
     }
@@ -56,4 +57,5 @@ resource "azurerm_linux_virtual_machine" "client" {
     storage_account_type = "Premium_LRS"
     disk_size_gb         = "32"
   }
+  tags = merge(var.tags, local.netskope_tags)
 }

@@ -12,7 +12,7 @@ resource "azurerm_resource_group" "netskope_sdwan_gw_rg" {
   count    = var.azurerm_network_config.vnet_rg_name == null ? 1 : 0
   name     = join("-", ["rg", var.netskope_tenant.tenant_id, var.azurerm_network_config.location])
   location = var.azurerm_network_config.location
-  tags     = local.common_tags
+  tags = merge(var.tags, local.netskope_tags)
 }
 
 locals {
@@ -31,7 +31,7 @@ resource "azurerm_virtual_network" "netskope_sdwan_gw_vnet" {
   location            = local.netskope_sdwan_gw_rg.location
   resource_group_name = local.netskope_sdwan_gw_rg.name
   address_space       = [var.azurerm_network_config.vnet_cidr]
-  tags                = local.common_tags
+  tags = merge(var.tags, local.netskope_tags)
 }
 
 locals {
@@ -68,14 +68,14 @@ resource "azurerm_network_security_group" "netskope_sdwan_gw_public" {
   name                = join("-", ["public", var.netskope_tenant.tenant_id, local.netskope_sdwan_gw_rg.location])
   location            = local.netskope_sdwan_gw_rg.location
   resource_group_name = local.netskope_sdwan_gw_rg.name
-  tags                = local.common_tags
+  tags = merge(var.tags, local.netskope_tags)
 }
 
 resource "azurerm_network_security_group" "netskope_sdwan_gw_private" {
   name                = join("-", ["private", var.netskope_tenant.tenant_id, local.netskope_sdwan_gw_rg.location])
   location            = local.netskope_sdwan_gw_rg.location
   resource_group_name = local.netskope_sdwan_gw_rg.name
-  tags                = local.common_tags
+  tags = merge(var.tags, local.netskope_tags)
 }
 
 resource "azurerm_network_security_rule" "netskope_sdwan_gw_public" {
@@ -124,13 +124,13 @@ resource "azurerm_network_security_rule" "netskope_sdwan_gw_private" {
 }
 
 resource "azurerm_subnet_network_security_group_association" "netskope_sdwan_gw_public" {
-  for_each                  = toset(keys(local.public_overlay_interfaces))
+  for_each                  = { for k, v in keys(local.public_overlay_interfaces) : k => v if var.azurerm_network_config.vnet_name == null }
   subnet_id                 = local.azurerm_subnets[each.key].id
   network_security_group_id = azurerm_network_security_group.netskope_sdwan_gw_public.id
 }
 
 resource "azurerm_subnet_network_security_group_association" "netskope_sdwan_gw_private" {
-  for_each                  = toset(local.lan_interfaces)
+  for_each                  = { for index, value in local.lan_interfaces : value => value if var.azurerm_network_config.vnet_name == null }
   subnet_id                 = local.azurerm_subnets[each.key].id
   network_security_group_id = azurerm_network_security_group.netskope_sdwan_gw_private.id
 }
@@ -153,7 +153,7 @@ resource "azurerm_route_table" "netskope_sdwan_gw_public_rt" {
     next_hop_type  = "VnetLocal"
   }
 
-  tags = local.common_tags
+  tags = merge(var.tags, local.netskope_tags)
 }
 
 resource "azurerm_route_table" "netskope_sdwan_gw_private_rt" {
@@ -168,7 +168,7 @@ resource "azurerm_route_table" "netskope_sdwan_gw_private_rt" {
     next_hop_type  = "VnetLocal"
   }
 
-  tags = local.common_tags
+  tags = merge(var.tags, local.netskope_tags)
 }
 
 locals {
@@ -203,6 +203,7 @@ resource "azurerm_public_ip" "netskope_sdwan_gw_route_server" {
   resource_group_name = local.netskope_sdwan_gw_rg.name
   allocation_method   = "Static"
   sku                 = "Standard"
+  tags = merge(var.tags, local.netskope_tags)
 }
 
 resource "azurerm_route_server" "netskope_sdwan_gw_route_server" {
@@ -217,6 +218,7 @@ resource "azurerm_route_server" "netskope_sdwan_gw_route_server" {
   depends_on = [
     azurerm_public_ip.netskope_sdwan_gw_route_server[0]
   ]
+  tags = merge(var.tags, local.netskope_tags)
 }
 
 locals {

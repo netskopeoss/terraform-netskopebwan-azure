@@ -10,6 +10,7 @@ resource "azurerm_public_ip" "netskope_sdwan_primary_gw" {
   resource_group_name = local.netskope_sdwan_gw_rg.name
   allocation_method   = "Static"
   sku                 = "Standard"
+  tags = merge(var.tags, local.netskope_tags)
 }
 
 resource "azurerm_public_ip" "netskope_sdwan_secondary_gw" {
@@ -19,6 +20,7 @@ resource "azurerm_public_ip" "netskope_sdwan_secondary_gw" {
   resource_group_name = local.netskope_sdwan_gw_rg.name
   allocation_method   = "Static"
   sku                 = "Standard"
+  tags = merge(var.tags, local.netskope_tags)
 }
 
 resource "azurerm_network_interface" "netskope_sdwan_primary_gw_intf" {
@@ -34,6 +36,7 @@ resource "azurerm_network_interface" "netskope_sdwan_primary_gw_intf" {
     private_ip_address_allocation = "Dynamic"
     public_ip_address_id          = try(local.public_overlay_interfaces[each.key], null) != null ? azurerm_public_ip.netskope_sdwan_primary_gw[each.key].id : null
   }
+  tags = merge(var.tags, local.netskope_tags)
 }
 
 resource "azurerm_network_interface" "netskope_sdwan_secondary_gw_intf" {
@@ -49,4 +52,5 @@ resource "azurerm_network_interface" "netskope_sdwan_secondary_gw_intf" {
     private_ip_address_allocation = "Dynamic"
     public_ip_address_id          = try(local.public_overlay_interfaces[each.key], null) != null ? azurerm_public_ip.netskope_sdwan_secondary_gw[each.key].id : null
   }
+  tags = merge(var.tags, local.netskope_tags)
 }

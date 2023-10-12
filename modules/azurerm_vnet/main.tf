@@ -17,8 +17,8 @@ locals {
   non_overlay_interfaces = setsubtract(keys(local.enabled_interfaces), keys(merge(local.public_overlay_interfaces, local.private_overlay_interfaces)))
   lan_interfaces         = length(local.non_overlay_interfaces) != 0 ? local.non_overlay_interfaces : keys(local.private_overlay_interfaces)
 
-  common_tags = {
-    environment = join("-", [var.netskope_tenant.tenant_id, var.azurerm_network_config.location])
+  netskope_tags = {
+    netskope_tenant_id = var.netskope_tenant.tenant_id
   }
 }
 

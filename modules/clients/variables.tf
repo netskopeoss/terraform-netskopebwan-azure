@@ -129,3 +129,12 @@ variable "clients" {
   }
 }
 
+###################
+## Optional Tags ##
+###################
+
+variable "tags" {
+  description = "Optional Tags to inherit"
+  type = any
+  default = { }
+}

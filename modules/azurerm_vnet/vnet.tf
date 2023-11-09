@@ -124,7 +124,7 @@ resource "azurerm_network_security_rule" "netskope_sdwan_gw_private" {
 }
 
 resource "azurerm_subnet_network_security_group_association" "netskope_sdwan_gw_public" {
-  for_each                  = { for k, v in keys(local.public_overlay_interfaces) : k => v if var.azurerm_network_config.vnet_name == null }
+  for_each                  = { for k, v in keys(local.public_overlay_interfaces) : v => v if var.azurerm_network_config.vnet_name == null }
   subnet_id                 = local.azurerm_subnets[each.key].id
   network_security_group_id = azurerm_network_security_group.netskope_sdwan_gw_public.id
 }

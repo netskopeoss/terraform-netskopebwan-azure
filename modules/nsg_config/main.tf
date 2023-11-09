@@ -22,17 +22,17 @@ locals {
   route_server_secondary_ip = cidrhost(var.azurerm_route_server.route_server_cidr, 5)
 }
 
-resource "netskopebwan_policy" "multicloud" {
+data "netskopebwan_policy" "multicloud" {
   name = var.netskope_gateway_config.gateway_policy
 }
 
 locals {
-  netskopebwan_policy = resource.netskopebwan_policy.multicloud
+  netskopebwan_policy = data.netskopebwan_policy.multicloud
 }
 
 // Gateway Resource 
 resource "netskopebwan_gateway" "primary" {
-  name  = var.netskope_gateway_config.gateway_name
+  name  = join("-", [var.netskope_gateway_config.gateway_name, var.azurerm_network_config.location])
   model = var.netskope_gateway_config.gateway_model
   role  = var.netskope_gateway_config.gateway_role
   assigned_policy {
@@ -53,7 +53,7 @@ resource "time_sleep" "primary_gw_propagation" {
 
 resource "netskopebwan_gateway" "secondary" {
   count = var.netskope_gateway_config.ha_enabled ? 1 : 0
-  name  = "${var.netskope_gateway_config.gateway_name}-ha"
+  name  = "${join("-", [var.netskope_gateway_config.gateway_name, var.azurerm_network_config.location])}-ha"
   model = var.netskope_gateway_config.gateway_model
   role  = var.netskope_gateway_config.gateway_role
   assigned_policy {

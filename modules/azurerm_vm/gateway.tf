@@ -37,6 +37,9 @@ resource "azurerm_linux_virtual_machine" "netskope_sdwan_primary_gw" {
     type = "SystemAssigned"
   }
 
+  provision_vm_agent = false
+  allow_extension_operations = false
+  
   boot_diagnostics {
     storage_account_uri = null
   }
@@ -45,13 +48,14 @@ resource "azurerm_linux_virtual_machine" "netskope_sdwan_primary_gw" {
     username   = "infiot"
     public_key = var.azurerm_instance.ssh_key
   }
-  custom_data = base64encode(templatefile("${path.module}/scripts/user-data.sh",
+  user_data = base64encode(templatefile("${path.module}/scripts/user-data.sh",
     {
       netskope_gw_default_password = var.netskope_gateway_config.gateway_password,
       netskope_tenant_url          = var.netskope_tenant.tenant_url,
       netskope_gw_activation_key   = var.netskope_gateway_config.gateway_data.primary.token,
       netskope_gw_bgp_metric       = "10",
       netskope_gw_asn              = var.netskope_tenant.tenant_bgp_asn,
+      netskope_gw_version          = var.netskope_gateway_config.version,
       route_server_peer_ip1        = local.route_server_peer_ip1
       route_server_peer_ip2        = local.route_server_peer_ip2
     }
@@ -60,24 +64,25 @@ resource "azurerm_linux_virtual_machine" "netskope_sdwan_primary_gw" {
   network_interface_ids = tolist(local.primary_gw_interfaces)
   size                  = var.azurerm_instance.instance_type
 
-  source_image_reference {
-    publisher = var.azurerm_instance.publisher
-    offer     = var.azurerm_instance.offer
-    sku       = var.azurerm_instance.sku
-    version   = var.azurerm_instance.version
-  }
+  # source_image_reference {
+  #   publisher = var.azurerm_instance.publisher
+  #   offer     = var.azurerm_instance.offer
+  #   sku       = var.azurerm_instance.sku
+  #   version   = var.azurerm_instance.version
+  # }
 
-  plan {
-    name      = var.azurerm_instance.sku
-    product   = var.azurerm_instance.offer
-    publisher = var.azurerm_instance.publisher
-  }
-
+  # plan {
+  #   name      = var.azurerm_instance.sku
+  #   product   = var.azurerm_instance.offer
+  #   publisher = var.azurerm_instance.publisher
+  # }
+  source_image_id = "/subscriptions/9687d1fe-d97d-43c4-9950-37016dc1b18f/resourceGroups/infiot-images/providers/Microsoft.Compute/galleries/infiotcloudimages/images/Infiot_Edge/versions/6.0.33"
+  
   os_disk {
     name                 = join("-", ["osdisk", var.netskope_gateway_config.gateway_data.primary.id])
     caching              = "ReadWrite"
     storage_account_type = "Premium_LRS"
-    disk_size_gb         = "32"
+    disk_size_gb         = "34"
   }
 
   tags = merge(var.tags, local.netskope_tags)
@@ -110,6 +115,7 @@ resource "azurerm_linux_virtual_machine" "netskope_sdwan_secondary_gw" {
       netskope_gw_activation_key   = var.netskope_gateway_config.gateway_data.secondary.token,
       netskope_gw_bgp_metric       = "20",
       netskope_gw_asn              = var.netskope_tenant.tenant_bgp_asn,
+      netskope_gw_version          = var.netskope_gateway_config.version,
       route_server_peer_ip1        = local.route_server_peer_ip1
       route_server_peer_ip2        = local.route_server_peer_ip2
     }

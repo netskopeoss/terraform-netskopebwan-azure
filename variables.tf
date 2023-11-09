@@ -96,6 +96,7 @@ variable "netskope_tenant" {
 variable "netskope_gateway_config" {
   description = "Netskope Gateway Details"
   type = object({
+    version          = optional(string, "R1.4.255")         # Boolean to control HA GW deployment
     ha_enabled       = optional(bool, false)         # Boolean to control HA GW deployment
     gateway_password = optional(string, "infiot")    # Default password to be useful for console login
     gateway_policy   = optional(string, "test")      # New Gateway Policy name to create

@@ -1,5 +1,9 @@
   #cloud-config
   password: ${netskope_gw_default_password}
+  runcmd:
+    - sed -i 's/enp2s/eth/g' /etc/infhostd/infhostd.yaml
+    - sed -i 's/enp2s/eth/g' /infroot/infhostd.yaml
+    - service infhost restart
   infiot:
     uri: ${netskope_tenant_url}
     token: ${netskope_gw_activation_key}

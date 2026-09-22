@@ -1,25 +1,25 @@
 #------------------------------------------------------------------------------
-#  Copyright (c) 2022 Infiot Inc.
-#  All rights reserved.
+#  Terraform and Provider Version Constraints
 #------------------------------------------------------------------------------
 
 terraform {
-  required_version = ">=0.13"
+  required_version = ">= 1.3"
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "~> 3.31.0"
-    }
-    time = {
-      source  = "hashicorp/time"
-      version = "~> 0.7.2"
+      version = "~> 3.0"
     }
     netskopebwan = {
       source  = "netskopeoss/netskopebwan"
       version = "0.0.2"
     }
-    utils = {
-      source = "cloudposse/utils"
+    null = {
+      source  = "hashicorp/null"
+      version = "~> 3.0"
+    }
+    time = {
+      source  = "hashicorp/time"
+      version = "~> 0.7"
     }
   }
 }

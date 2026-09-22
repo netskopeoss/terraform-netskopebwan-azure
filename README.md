@@ -1,86 +1,144 @@
-# Netskope SD-WAN GW Azure Module
+# Netskope SD-WAN Gateway — Azure Terraform Project
 
-This Infrastructure as Code (IaC) will help you deploy Netskope SD-WAN Gateway in your Azure environment in following scenarios:
-- Deploy and activate Netskope SD-WAN Gateway in a new Virtual network and connect to a new Route Server
-- Deploy and activate Netskope SD-WAN Gateway in an existing Virtual network and connect to existing Route Server
-- Deploy Gateway with multiple WAN links / interfaces
-- Optional client deployment for end to end solution validation
+Deploys and activates a resilient pair of Netskope SD-WAN (BWAN) gateways in Azure with automated BGP peering through an Azure Route Server. This project handles the full lifecycle: VNet networking, Netskope portal configuration, Azure VM provisioning, and post-launch BGP setup via Azure Run Command.
 
-This module creates / configures the following objects in Azure and Netskop SD-WAN Portal:
+## When to Use This Project
 
-## Azure Cloud
-   - Virtual Network (Re-use existing or create new one)
-   - Subnets (Re-use existing or create new one)
-   - Route Server (Re-use existing or create new one)
-   - Network Security Groups (For both WAN network and Private network)
-   - BGP Peering in Route Server to Netskope SD-WAN
-   - Route tables for WAN network and Private network
-   - Host Vnet / VM and required peerings (if chosen)
+This project implements Netskope Borderless SD-WAN with BGP — the recommended approach for steering Azure workload traffic through Netskope for security inspection. It is transparent to applications: no agents, no code changes, no per-instance configuration.
 
-## Netskope SD-WAN Portal
-   - Create new policy
-   - Create new gateway (HA deployment is optional)
-   - Configure required static routes and BGP peers
+### How It Works
 
-## Key Points
+BWAN Gateways run as Azure Virtual Machines in a dedicated VNet, with their LAN interfaces peering directly with an Azure Route Server via eBGP. Each gateway establishes IPsec tunnels to Netskope NewEdge Data Planes and runs BGP sessions with the Route Server to exchange routing information. Azure UDRs (route tables) on spoke subnets direct internet-bound traffic to the gateways for inspection by Netskope.
 
-- The default username for the gateway is "infiot". Password authentication is disabled and you must use SSH keys to authenticate.
-  This module has an option to set the password for the default username "infiot". This will be used only for console access.
+### ECMP and High Availability
 
-## Architecture Diagram
+Each gateway originates a default route (0.0.0.0/0) over its BGP sessions to the Route Server, advertising it with equal MED values across all gateways. The Route Server learns these routes and propagates them through the VNet. Because both gateways advertise the same prefix with matching BGP attributes, traffic is distributed across gateways using Equal-Cost Multi-Path (ECMP) routing. If a gateway goes down, its BGP sessions drop and traffic automatically reroutes to the remaining healthy gateway.
 
-This IaC will create the Azure resources as shown below.
+The default deployment uses 2 gateways distributed across two Azure availability zones. The project supports up to 8 gateways (the Route Server BGP connection limit per Route Server is higher; the soft cap of 8 in `variables.tf` can be raised).
 
-![](.//images/azure.png)
+### Applicable Workloads
 
-*Fig 1. Netskope SD-WAN GW deployment in Azure*
+Any Azure workload that routes outbound traffic via a default route (0.0.0.0/0) through a UDR — application VMs, containers, AKS nodes, Azure Batch — benefits from Netskope inspection without modification.
 
-## Deployment
+## Architecture
 
-To deploy this template in Azure:
+```
+                    ┌──────────────────────────────────────┐
+                    │       Netskope SD-WAN Portal         │
+                    │  (Policy, Gateways, BGP, Activation) │
+                    └──────────┬───────────────────────────┘
+                               │ REST API (netskopebwan provider)
+    ┌──────────────────────────┼──────────────────────────────────────┐
+    │  Azure Region            │                                      │
+    │                          │                                      │
+    │  ┌───────────────────────▼─────────────────────────────────┐   │
+    │  │  VNet (vnet_cidr)                                       │   │
+    │  │                                                         │   │
+    │  │  ┌────────────────┐    ┌─────────────────┐              │   │
+    │  │  │ GW-1 (Zone 3)  │    │ GW-2 (Zone 2)   │             │   │
+    │  │  │ ┌────────────┐ │    │ ┌────────────┐  │             │   │
+    │  │  │ │ ge1 (WAN)  │◄┼─PIP─►│ ge1 (WAN)  │◄─┼─PIP        │   │
+    │  │  │ │ Public NSG │ │    │ │ Public NSG │  │             │   │
+    │  │  │ └────────────┘ │    │ └────────────┘  │             │   │
+    │  │  │ ┌────────────┐ │    │ ┌────────────┐  │             │   │
+    │  │  │ │ ge2 (LAN)  │ │    │ │ ge2 (LAN)  │  │             │   │
+    │  │  │ │ Private NSG│ │    │ │ Private NSG│  │             │   │
+    │  │  │ └──────┬─────┘ │    │ └──────┬─────┘  │             │   │
+    │  │  └────────┼───────┘    └────────┼─────────┘            │   │
+    │  │           │ eBGP (ASN 400)      │ eBGP (ASN 400)       │   │
+    │  │  ┌────────▼─────────────────────▼──────────────────┐   │   │
+    │  │  │  RouteServerSubnet (/27)                         │   │   │
+    │  │  │  Azure Route Server  (ASN 65515, fixed)          │   │   │
+    │  │  │  ├── Peer IP 1  ←─ BGP sessions from GW-1, GW-2 │   │   │
+    │  │  │  └── Peer IP 2  ←─ BGP sessions from GW-1, GW-2 │   │   │
+    │  │  └─────────────────────────────────────────────────┘   │   │
+    │  └─────────────────────────────────────────────────────────┘   │
+    └─────────────────────────────────────────────────────────────────┘
+```
 
-- First, get authenticated to Azure Cloud using `az login` and `az account set --subscription <name>`
+Each gateway peers with both Route Server IPs for redundancy. The Route Server ASN (65515) is fixed by Azure and cannot be changed.
 
-- Identify the "Base URL" for your Netskope SD-WAN Tenant. This is a URL that you use to access your Netskope tenant, for example: `https://example.infiot.net`
-  This will be set in "netskope_tenant" variable blob
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed network topology, resource inventory, and BGP design.
 
-- Get the ID of your Tenant from Netskope Team.
+## Quick Start
 
-- Create a REST API Token as follows:
+```sh
+git clone <repository-url>
+cd terraform-netskopebwan-azure
+cp example.tfvars terraform.tfvars
+# Edit terraform.tfvars — fill in subscription ID, resource group, policy name, passwords
 
-![API Token](images/api-token.png)
+export TF_VAR_netskope_tenant_url="your-tenant.infiot.net"
+export TF_VAR_netskope_tenant_token="YOUR_API_TOKEN"
 
-*Fig 2. Netskope SD-WAN Portal API Token*
+terraform init
+terraform plan -var-file=terraform.tfvars
+terraform apply -var-file=terraform.tfvars
+```
 
-- Clone the GitHub repository for this deployment.
+See [docs/QUICKSTART.md](docs/QUICKSTART.md) for a step-by-step walkthrough with expected outputs.
 
-- Configure provider block or set variables in the "provider.tf" file.
+## Prerequisites
 
-- Customize variables in the `example.tfvars` and `variables.tf` file as needed.
-- Change to the repository directory and then initialize the providers and modules.
+- **Terraform** >= 1.3 with providers: `azurerm ~> 3.0`, `netskopebwan 0.0.2`, `null ~> 3.0`, `time ~> 0.7`
+- **Azure CLI** (`az`) installed and authenticated (`az login`)
+- **Azure subscription** with permissions to create VNet, VM, Route Server, NSG, public IP, and run-command resources (see [docs/RBAC_PERMISSIONS.md](docs/RBAC_PERMISSIONS.md))
+- **Netskope SD-WAN tenant** with tenant URL and a REST API token
+- **Netskope gateway policy** created in the SD-WAN portal before deploying (the policy name is referenced in `terraform.tfvars`)
+- **Marketplace terms accepted** for the Netskope BWAN image — either set `accept_plan = true` in `azure_vm_config`, or run:
+  ```sh
+  az vm image terms accept \
+    --publisher netskopebwan \
+    --offer netskope-unified-sase-virtual-gateway \
+    --plan netskope-unified-sase-virtual-gateway-r6_2_x
+  ```
 
-   ```sh
-   $ cd <Code Directory>
-   $ terraform init
-    ```
-- Submit the Terraform plan to preview the changes Terraform will make to match your configuration.
+## VM Image
 
-   ```sh
-   $ terraform plan
-   ```
-- Apply the plan. The apply will make no changes to your resources, you can either respond to the confirmation prompt with a 'Yes' or cancel the apply if changes are needed.
+The Netskope BWAN gateway runs from an Azure Marketplace image:
 
-   ```sh
-   $ terraform apply
-   ```
+| Field | Value |
+|---|---|
+| Publisher | `netskopebwan` |
+| Offer | `netskope-unified-sase-virtual-gateway` |
+| SKU / Plan | `netskope-unified-sase-virtual-gateway-r6_2_x` |
+| Version | `6.2.5` |
+| Generation | Gen1 |
 
-## Destruction
+**Important**: This image is Gen1 only. Gen2-exclusive VM sizes (e.g. D2s_v6 series) are not compatible.
 
-- To destroy this deployment, use the command:
+**Tested VM size**: `Standard_DS11_v2` (2 vCPU, 14 GB RAM, Gen1 + Gen2 support). Check availability in your region and availability zone:
 
-   ```sh
-   $ terraform destroy
-   ```
+```sh
+az vm list-skus --location <region> --size Standard_DS11 --zone true -o table
+```
+
+## Outputs
+
+| Output | Description |
+|---|---|
+| `gateways` | Map of gateway keys to VM names, public IPs, LAN IPs, zone, and BGP config status |
+| `route_server_peer_ips` | Set of two Route Server BGP peer IPs (Route Server ASN is always 65515) |
+| `route_server_id` | Azure Route Server resource ID |
+| `computed_gateway_map` | Auto-computed gateway configuration (subnets, zones, BGP metrics) |
+| `resource_group_name` | Resource group containing all deployed resources |
+| `vnet_id` | VNet resource ID |
+
+## Documentation
+
+| Document | Description |
+|---|---|
+| [Quick Start](docs/QUICKSTART.md) | Get deployed fast — minimal config, credentials, deploy, and verify |
+| [Deployment Guide](docs/DEPLOYMENT_GUIDE.md) | Full variable reference, authentication options, deployment paths, scaling |
+| [Architecture](docs/ARCHITECTURE.md) | Network topology, resource inventory, BGP design, security layers |
+| [Operations](docs/OPERATIONS.md) | Day-2: scaling, gateway replacement, BGP config re-run, monitoring |
+| [Troubleshooting](docs/TROUBLESHOOTING.md) | Diagnostic flowchart, BGP verification, SSE tunnel checks, common errors |
+| [RBAC Permissions](docs/RBAC_PERMISSIONS.md) | Required Azure roles for the Terraform operator and CI/CD |
+| [State Management](docs/STATE_MANAGEMENT.md) | Remote backend setup (Azure Storage) |
+
+## License
+
+This project is licensed under the BSD 3-Clause License — see the [LICENSE](LICENSE) file for details.
 
 ## Support
 
